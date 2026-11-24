@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>To-do</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <header>
+      <h1>To-do</h1>
+      <button id="sign-out" class="link" type="button" hidden>Sign out</button>
+    </header>
+
+    <p id="error" class="error" role="alert" hidden></p>
+
+    <section id="loading" class="center muted">Loading…</section>
+
+    <section id="signed-out" class="card center" hidden>
+      <p>Sign in to keep your tasks synced across devices.</p>
+      <button id="sign-in" class="primary" type="button">Sign in with Google</button>
+    </section>
+
+    <section id="signed-in" hidden>
+      <p id="who" class="muted small"></p>
+      <form id="add-form" autocomplete="off">
+        <input id="new-title" type="text" placeholder="Add a task" maxlength="500" enterkeyhint="done" aria-label="New task">
+        <button class="primary" type="submit" aria-label="Add task">Add</button>
+      </form>
+
+      <nav class="filters" aria-label="Filter tasks">
+        <button type="button" data-filter="all" aria-pressed="true">All</button>
+        <button type="button" data-filter="active" aria-pressed="false">Open</button>
+        <button type="button" data-filter="done" aria-pressed="false">Done</button>
+      </nav>
+
+      <ul id="list" class="list"></ul>
+      <p id="empty" class="center muted" hidden></p>
+
+      <footer>
+        <span id="remaining" class="muted"></span>
+        <button id="clear-done" class="link" type="button" hidden>Clear done</button>
+      </footer>
+    </section>
+  </main>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
