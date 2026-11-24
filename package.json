@@ -1,0 +1,15 @@
+{
+  "name": "tim-lab",
+  "private": true,
+  "type": "module",
+  "description": "Monorepo of small web apps, each deployed to GitHub Pages at /tim-lab/<app-name>/",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node scripts/test.mjs",
+    "check": "npm run build && npm test",
+    "serve": "npx --yes serve dist -l 5173"
+  }
+}
