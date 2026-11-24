@@ -9,7 +9,11 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "test": "node scripts/test.mjs",
-    "check": "npm run build && npm test",
-    "serve": "npx --yes serve dist -l 5173"
+    "check": "npm run build && npm test && npm run smoke",
+    "serve": "npx --yes serve dist -l 5173",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.65.1"
   }
 }

@@ -1,20 +1,26 @@
-name: Deploy to GitHub Pages
+name: Build, check, merge, deploy
+
+# Pull requests: build + unit tests + iPhone smoke check. If everything passes
+# and the PR only touches files inside ONE apps/<name>/ folder, it is
+# squash-merged automatically and the deploy is started. PRs that touch
+# anything else (shared/, scripts/, workflows, CLAUDE.md, two apps...) wait
+# for Tim to merge by hand.
+# Pushes to main (and manual runs): build + tests + smoke, then deploy Pages.
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: pages-${{ github.ref }}
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -32,23 +38,40 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Test
+      - name: Unit tests
         run: npm test
+
+      - name: Install browser for iPhone check
+        run: npx playwright install --with-deps chromium
+
+      - name: iPhone smoke check
+        run: npm run smoke
+
+      - name: Save iPhone screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iphone-screenshots
+          path: smoke-screenshots
+          if-no-files-found: ignore
 
       - name: Configure Pages
         if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v5
 
-      - name: Upload artifact
+      - name: Upload site
         if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
         with:
           path: dist
 
   deploy:
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -56,3 +79,46 @@ jobs:
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
+
+  automerge:
+    needs: build
+    if: >-
+      github.event_name == 'pull_request' &&
+      !github.event.pull_request.draft &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR: ${{ github.event.pull_request.number }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Check the PR only touches one app folder
+        id: scope
+        run: |
+          files=$(gh pr diff "$PR" --repo "$REPO" --name-only)
+          echo "Changed files:"; echo "$files"
+          apps=$(echo "$files" | awk -F/ '$1=="apps" && NF>=3 {print $2}' | sort -u)
+          outside=$(echo "$files" | awk -F/ '!($1=="apps" && NF>=3)')
+          if [ -n "$outside" ] || [ "$(echo "$apps" | grep -c .)" -ne 1 ]; then
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            gh pr comment "$PR" --repo "$REPO" --body "Checks passed, but this PR changes files outside a single \`apps/<name>/\` folder, so it was **not** merged automatically. Tim needs to review and merge it." || true
+          else
+            echo "eligible=true" >> "$GITHUB_OUTPUT"
+            echo "app=$apps" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Merge
+        if: steps.scope.outputs.eligible == 'true'
+        run: gh pr merge "$PR" --repo "$REPO" --squash --delete-branch
+
+      # A merge made with GITHUB_TOKEN does not trigger the push workflow,
+      # so start the deploy explicitly.
+      - name: Start deploy
+        if: steps.scope.outputs.eligible == 'true'
+        run: |
+          gh workflow run deploy.yml --repo "$REPO" --ref main
+          gh pr comment "$PR" --repo "$REPO" --body "Merged automatically. Live in about 2 minutes: https://timamato.github.io/tim-lab/${{ steps.scope.outputs.app }}/" || true
